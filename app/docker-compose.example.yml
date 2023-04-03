@@ -1,0 +1,159 @@
+version: "3.9"
+
+services:
+  nginx:
+    container_name: ${DOCKER_APP_NAME}_nginx
+    image: nginx
+    tty: true
+    ports:
+      - ${DOCKER_APP_PORT}:80
+    volumes:
+      - ../backend:/var/www
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+    networks:
+      - simplexmlparsernet
+
+  backend:
+    container_name: ${DOCKER_APP_NAME}_backend
+    build:
+      context: .
+      dockerfile: docker/backend/php-fpm/Dockerfile
+    restart: unless-stopped
+    tty: true
+    working_dir: /var/www
+    volumes:
+      - ../backend:/var/www
+      - ./docker/backend/php-fpm/php.ini:/usr/local/etc/php/php.ini
+    environment:
+      PHP_IDE_CONFIG: "serverName=PhpParserServerDocker"
+    depends_on:
+      - db
+    networks:
+      - simplexmlparsernet
+
+  redis:
+    container_name: ${DOCKER_APP_NAME}_redis
+    hostname: redis
+    image: redis
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - ./docker/cache/redis/data:/data
+    depends_on:
+      - backend
+    ports:
+      - ${DOCKER_REDIS_PORT}:6379
+    networks:
+      - simplexmlparsernet
+
+  redis-commander:
+    container_name: redis-commander
+    hostname: redis-commander
+    image: ghcr.io/joeferner/redis-commander:latest
+    restart: always
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - ${DOCKER_REDIS_COMMANDER_PORT}:8081
+    networks:
+      - simplexmlparsernet
+
+  db:
+    container_name: ${DOCKER_APP_NAME}_db
+    image: postgres:14.5
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=50"
+      - "-c"
+      - "shared_buffers=1GB"
+      - "-c"
+      - "effective_cache_size=4GB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "temp_file_limit=10GB"
+      - "-c"
+      - "log_min_duration_statement=200ms"
+      - "-c"
+      - "idle_in_transaction_session_timeout=10s"
+      - "-c"
+      - "lock_timeout=1s"
+      - "-c"
+      - "statement_timeout=60s"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./docker/db/pg/data:/var/lib/postgresql/data
+    ports:
+      - ${DOCKER_PG_PORT}:5432
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    networks:
+      - simplexmlparsernet
+
+  adminer:
+    image: adminer
+    container_name: ${DOCKER_APP_NAME}_adminer
+    restart: unless-stopped
+    ports:
+      - ${DOCKER_ADMINER_PORT}:8080
+    depends_on:
+      - db
+    environment:
+      ADMINER_DEFAULT_DB_DRIVER: db
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: hever
+      ADMINER_DEFAULT_DB_NAME: ${DB_DATABASE}
+    networks:
+      - simplexmlparsernet
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
+    ports:
+      - ${RABBITMQ_AMQP_PORT}:5672
+      - ${RABBITMQ_HTTP_PORT}:15672
+    volumes:
+      #- ./docker/rabbitmq/etc:/etc/rabbitmq
+      - ./docker/rabbitmq/data/:/var/lib/rabbitmq
+      - ./docker/rabbitmq/log/:/var/log/rabbitmq
+      #command: ["bash", "-c", "chmod 400 /var/lib/rabbitmq/.erlang.cookie; rabbitmq-server"]
+      #environment:
+      #  RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
+      # RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      # RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    restart: always
+    networks:
+      - simplexmlparsernet
+
+networks:
+  simplexmlparsernet:
+    driver: bridge

@@ -1,0 +1,9 @@
+/.idea
+.env
+docker/db/pg/data/pgdata/*
+docker/rabbitmq/data/*
+docker/rabbitmq/log/*
+docker/logs/*
+docker/cache/redis/data/*
+docker/certs/*
+docker-compose.yml
