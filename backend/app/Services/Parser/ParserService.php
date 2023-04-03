@@ -47,10 +47,14 @@ class ParserService
                 ];
             }
 
+            $data = (new ParserStorageService())->store($data);
+
             $resultParsing[] = $data;
 
             $i++;
         }
+
+        Storage::delete($this->getFilePath());
 
         return [
             "success" => $this->isParsingSuccess(),
@@ -63,32 +67,6 @@ class ParserService
     {
         $parsedData = $this->parse($offset, $limit, $sheetId);
         $separatedParsedData = $this->separationRowsUpdateCreate($parsedData);
-
-        if (key_exists('new', $separatedParsedData)) {
-            try {
-                $this->storeParsedData($separatedParsedData['new']);
-            } catch (\Matrix\Exception $e) {
-                return [
-                    "success" => $this->setParsingSuccess(false),
-                    "message" => $this->setParsingMessage(
-                        "Error file {$this->getFilePath()} parsed, error created, {$e->getMessage()}"
-                    ),
-                ];
-            }
-        }
-
-        if (key_exists('update', $separatedParsedData)) {
-            try {
-                $this->updateParsedData($separatedParsedData['update']);
-            } catch (Exception $e) {
-                return [
-                    "success" => $this->setParsingSuccess(false),
-                    "message" => $this->setParsingMessage(
-                        "Error file {$this->getFilePath()} parsed, error updated, {$e->getMessage()}"
-                    ),
-                ];
-            }
-        }
 
         return $separatedParsedData;
     }
@@ -111,30 +89,6 @@ class ParserService
 
         return $processData;
     }
-
-
-    /**
-     * @param array $parsedData
-     * @return void
-     */
-    public function storeParsedData(array $parsedData)
-    {
-        Row::insert($parsedData);
-    }
-
-    /**
-     * @param array $parsedData
-     * @return void
-     */
-    public function updateParsedData(array $parsedData)
-    {
-        foreach ($parsedData as $row) {
-            (new Row())
-                ->where('row_id', (int)$row['row_id'])
-                ->update($row);
-        }
-    }
-
 
     /**
      * @param Worksheet $sheet
