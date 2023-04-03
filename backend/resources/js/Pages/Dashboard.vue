@@ -83,7 +83,8 @@ const uploadFile = (event) => {
 
 const timeOut = (msec = 3000) => {
     setTimeout(function () {
-        console.log("Executed after " + Math.round(msec / 1000) + "second");
+        console.log("Executed after " + Math.round(msec / 1000) + " seconds");
+        window.location.reload()
     }, msec);
 }
 
@@ -106,9 +107,8 @@ const submitFile = async () => {
             message.value = 'File ' + fileName.value + ' parsed successful';
             statusUploadedFile.value = false;
 
-            timeOut();
-
-            window.location.reload();
+            //timeOut();
+            //window.location.reload();
         } catch (error) {
             console.error(error);
         }
