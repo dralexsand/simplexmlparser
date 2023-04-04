@@ -1,7 +1,7 @@
 # simplexmlparser
 
 ```
-git ...
+git clone git@github.com:dralexsand/simplexmlparser.git
 
 cd backend (from root repo)
 
