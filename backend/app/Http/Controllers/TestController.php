@@ -46,7 +46,7 @@ class TestController extends Controller
         //$data = $client->getrange('simplexlsparser_database_queues:default', 0, -1);
         //$result = $client->getConnection('simplexlsparser_database_queues:default');
         //$result = $client->getConnection();
-        $result = $client->get('uuid_2023_04_03_01_16_20_7_4d7ce6b6-0618-4077-a235-bf02a410fbdb');
+        $result = $client->lrange('5717edfc-7b34-424d-aad4-08fbd44f9dd2', 0, -1);
 
         /*$result = [];
 

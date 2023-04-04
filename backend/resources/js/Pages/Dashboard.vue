@@ -47,17 +47,40 @@
                                         </div>
                                     </div>
 
-                                    {{ message }}
+                                    {{ messageInfo }}
 
                                 </div>
                             </form>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <div class="md-2">
+
+            <div class="mb-10 p-1 text-center">
+                <p>
+                    Publish an event to channel <strong>rows</strong>
+                    with event name <strong>RowChangeEvent</strong>:;
+                </p>
+            </div>
+
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6 text-gray-900">
+
+                        <ul>
+                            <li v-for="message in messages">
+                                {{ message }}
+                            </li>
+                        </ul>
 
                     </div>
                 </div>
             </div>
         </div>
+
     </AuthenticatedLayout>
 </template>
 
@@ -68,8 +91,37 @@ import {Head} from '@inertiajs/vue3';
 import {ref, computed} from "vue";
 import axios from "axios";
 
+
+// pusher
+
+const messages = ref([])
+
+Pusher.logToConsole = true;
+
+let pusher = new Pusher('72844561a33e9a716a3b', {
+    cluster: 'eu'
+});
+
+let channel = pusher.subscribe('rows');
+
+Echo.private('rows')
+    .listen('RowChangeEvent', (e) => {
+        console.log('RowChangeEvent e');
+        console.log(e);
+        messages.value.push({message: e.message});
+    });
+
+channel.bind('RowChangeEvent', function (data) {
+    messages.value.push(JSON.stringify(data));
+});
+
+
+// pusher
+
+const messageInfo = ref('Upload file')
+
 const file = ref(null);
-const message = ref('Upload file')
+
 const statusUploadedFile = ref(false)
 
 const fileName = computed(() => file.value?.name);
@@ -77,7 +129,7 @@ const fileExtension = computed(() => fileName.value?.substr(fileName.value?.last
 const fileMimeType = computed(() => file.value?.type);
 const uploadFile = (event) => {
     file.value = event.target.files[0];
-    message.value = 'File ' + fileName.value + ' uploaded, then click submit button';
+    messageInfo.value = 'File ' + fileName.value + ' uploaded, then click submit button';
     statusUploadedFile.value = true;
 };
 
@@ -100,11 +152,11 @@ const submitFile = async () => {
             fileMimeType: fileMimeType.value,
         };
         try {
-            message.value = 'File ' + fileName.value + ' being parsed...';
+            messageInfo.value = 'File ' + fileName.value + ' being parsed...';
             const apiUrl = "http://127.0.0.1:8083/api/v1/parser";
             const response = await axios.post(apiUrl, data);
             console.log(response.data);
-            message.value = 'File ' + fileName.value + ' parsed successful';
+            messageInfo.value = 'File ' + fileName.value + ' parsed successful';
             statusUploadedFile.value = false;
 
             //timeOut();

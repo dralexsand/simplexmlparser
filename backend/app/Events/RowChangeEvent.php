@@ -11,16 +11,19 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class RowChangeEvent
+class RowChangeEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public $message;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(array $eventData)
+    public function __construct($message)
     {
-        Log::info('LOG_EVENT:event.change', ['RowChangeEvent']);
+        //Log::info('LOG_EVENT:event.change', ['RowChangeEvent']);
+        $this->message = $message;
     }
 
     /**
@@ -30,8 +33,11 @@ class RowChangeEvent
      */
     public function broadcastOn(): array
     {
-        return [
-            new PrivateChannel('stack'),
-        ];
+        return ['rows'];
+    }
+
+    public function broadcastAs()
+    {
+        return 'RowChangeEvent';
     }
 }

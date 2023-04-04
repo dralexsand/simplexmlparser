@@ -42,7 +42,9 @@ class StorageService
             'data' => $parsedData,
         ];
 
-        event(new RowChangeEvent($eventData));
+        broadcast(new RowChangeEvent('new parsed data stored'));
+        //broadcast(new RowChangeEvent($eventData));
+        event(new RowChangeEvent(json_encode($eventData)));
     }
 
     /**
@@ -65,6 +67,8 @@ class StorageService
             'data' => $parsedData,
         ];
 
-        event(new RowChangeEvent($eventData));
+        broadcast(new RowChangeEvent('parsed data updated'));
+        //broadcast(new RowChangeEvent($eventData));
+        event(new RowChangeEvent(json_encode($eventData)));
     }
 }
