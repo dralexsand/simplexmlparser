@@ -3,23 +3,22 @@
 namespace App\Services\Parser;
 
 use App\Models\Row;
+use App\Services\Progress\ProgressService;
 use Illuminate\Support\Facades\Storage;
-use PhpOffice\PhpSpreadsheet\Exception;
+use PhpOffice\PhpSpreadsheet\Calculation\Exception;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ParserService
+class ParsingService
 {
-    private string $filePath;
     private string $breakCondition;
     private int $lastRow;
     private bool $isProcess;
     private bool $parsingSuccess;
     private string $parsingMessage;
 
-    public function __construct(string $uploadedFilePath)
+    public function __construct()
     {
-        $this->setFilePath($uploadedFilePath);
         // set chars as mark of end parsing
         $this->setBreakCondition(env('PARSER_BREAK_CONDITION_PARSE', ''));
         // set last row as 0
@@ -27,58 +26,58 @@ class ParserService
         // marked process as true on start parsing
         $this->setIsProcess(true);
         $this->setParsingSuccess(true);
-        $this->setParsingMessage("file {$this->getFilePath()} parsed successful, db refresh");
     }
 
-    public function process(int $sheetId = 0): array
+    public function getSpecificSheet(string $pathFile, int $sheetIndex = 0): Worksheet
     {
-        $resultParsing = [];
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(true);
+
+        $file = Storage::path($pathFile);
+
+        $spreadsheet = $reader->load($file);
+
+        return $spreadsheet->getSheet($sheetIndex);
+    }
+
+    public function process(string $pathFile, int $sheetId, string $sessionId)
+    {
+        $sheet = $this->getSpecificSheet($pathFile, $sheetId);
 
         $i = 0;
+
+        $date = date('Y_m_d_h_i_s');
+
         while ($this->getIsProcess()) {
             $offset = $i * 1000;
             $limit = 1000;
-            $data = $this->chunkParser($offset, $limit, $sheetId);
 
-            if (!$this->isParsingSuccess()) {
-                return [
-                    "success" => $this->isParsingSuccess(),
-                    "message" => $this->getParsingMessage(),
-                ];
-            }
+            $data = $this->chunkParser($sheet, $offset, $limit);
 
-            $data = (new ParserStorageService())->store($data);
+            (new StorageService())->store($data);
 
-            $resultParsing[] = $data;
+            $count = $this->getIsProcess() ? $offset + $limit : $this->getLastRow();
+
+            $prefix = "uuid_{$date}_{$i}_";
+
+            (new ProgressService())->storeProgress($sessionId, $count, $prefix);
 
             $i++;
         }
-
-        Storage::delete($this->getFilePath());
-
-        return [
-            "success" => $this->isParsingSuccess(),
-            "message" => $this->getParsingMessage(),
-            "data" => $resultParsing
-        ];
     }
 
-    private function chunkParser(int $offset, int $limit, int $sheetId)
+    public function chunkParser(Worksheet $sheet, int $offset, int $limit)
     {
-        $parsedData = $this->parse($offset, $limit, $sheetId);
-        $separatedParsedData = $this->separationRowsUpdateCreate($parsedData);
-
-        return $separatedParsedData;
+        $parsedData = $this->parse($sheet, $offset, $limit);
+        return $this->separationRowsUpdateCreate($parsedData);
     }
 
-    public function parse(int $offset, int $limit, int $sheetId): array
+    public function parse(Worksheet $sheet, int $offset, int $limit): array
     {
-        $sheet = $this->getSpecificSheet($sheetId);
-
         return $this->getItemsList($sheet, $offset, $limit);
     }
 
-    private function separationRowsUpdateCreate(array $parsedData): array
+    public function separationRowsUpdateCreate(array $parsedData): array
     {
         $processData = [];
 
@@ -95,9 +94,9 @@ class ParserService
      * @param int $offset
      * @param int $limit
      * @return array
-     * @throws \PhpOffice\PhpSpreadsheet\Calculation\Exception
+     * @throws Exception
      */
-    protected function getItemsList(
+    public function getItemsList(
         Worksheet $sheet,
         int $offset = 0,
         int $limit = 1000
@@ -129,25 +128,6 @@ class ParserService
         return $data;
     }
 
-
-    /**
-     * @param int $sheetIndex
-     * @return Worksheet
-     * @throws Exception
-     * @throws \PhpOffice\PhpSpreadsheet\Reader\Exception
-     */
-    public function getSpecificSheet(int $sheetIndex = 0): Worksheet
-    {
-        $reader = IOFactory::createReader('Xlsx');
-        $reader->setReadDataOnly(true);
-
-        $file = Storage::path($this->getFilePath());
-
-        $spreadsheet = $reader->load($file);
-
-        return $spreadsheet->getSheet(0);
-    }
-
     /**
      * @param int $row
      * @return bool
@@ -165,9 +145,9 @@ class ParserService
      * @param Worksheet $sheet
      * @param int $row
      * @return array
-     * @throws \PhpOffice\PhpSpreadsheet\Calculation\Exception
+     * @throws Exception
      */
-    protected function buildRowObject(Worksheet $sheet, int $row): array
+    public function buildRowObject(Worksheet $sheet, int $row): array
     {
         $data = [];
         $status = 'process';
@@ -205,7 +185,7 @@ class ParserService
      * @param int $rowId
      * @return string
      */
-    protected function getProcessRow(int $rowId): string
+    public function getProcessRow(int $rowId): string
     {
         $rowDb = Row::where('row_id', $rowId)->get()->toArray();
 
@@ -215,22 +195,6 @@ class ParserService
     public function convertFormatDate($excelFormattedDate)
     {
         return date("Y-m-d", ((int)$excelFormattedDate - 25569) * 86400);
-    }
-
-    /**
-     * @return string
-     */
-    public function getFilePath(): string
-    {
-        return $this->filePath;
-    }
-
-    /**
-     * @param string $filePath
-     */
-    public function setFilePath(string $filePath): void
-    {
-        $this->filePath = $filePath;
     }
 
     /**
@@ -295,22 +259,6 @@ class ParserService
     public function setParsingSuccess(bool $parsingSuccess): void
     {
         $this->parsingSuccess = $parsingSuccess;
-    }
-
-    /**
-     * @return string
-     */
-    public function getParsingMessage(): string
-    {
-        return $this->parsingMessage;
-    }
-
-    /**
-     * @param string $parsingMessage
-     */
-    public function setParsingMessage(string $parsingMessage): void
-    {
-        $this->parsingMessage = $parsingMessage;
     }
 
     public function mapColumns(): array

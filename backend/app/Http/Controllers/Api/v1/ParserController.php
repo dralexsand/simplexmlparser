@@ -4,15 +4,18 @@ namespace App\Http\Controllers\Api\v1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UploadRequest;
-use App\Services\Parser\ParserService;
-use App\Services\Parser\ParserUploadService;
+use App\Models\Session;
+use App\Services\Parser\ProcessService;
+use App\Services\Parser\UploadService;
+use App\Services\Session\SessionService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class ParserController extends Controller
 {
     public function __construct(
-        private ParserUploadService $parserUploadService
+        private UploadService $parserUploadService,
+        private SessionService $sessionService
     ) {
     }
 
@@ -27,7 +30,15 @@ class ParserController extends Controller
     {
         $uploadedFilePath = $this->parserUploadService->uploadFile($request);
 
-        $resultParsedData = (new ParserService($uploadedFilePath))->process();
+        $sessionId = $this->sessionService->initSession();
+
+        $resultParsedData = (new ProcessService($uploadedFilePath, $sessionId))->process();
+
+        (new Session())
+            ->where('session_id', $sessionId)
+            ->update([
+                'end_session' => date('Y-m-d H:i:s')
+            ]);
 
         $result = [
             'process' => 'upload',

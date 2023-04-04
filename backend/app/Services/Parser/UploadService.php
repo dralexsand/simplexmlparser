@@ -5,7 +5,7 @@ namespace App\Services\Parser;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Request;
 
-class ParserUploadService
+class UploadService
 {
     public function uploadFile(Request $request): string
     {
